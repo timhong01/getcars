@@ -156,7 +156,6 @@ td.best{color:var(--ok)}
         <summary>貸款與養車費用</summary>
         <div class="group">
           <div class="field"><label for="loanYears">貸款年數</label><input id="loanYears" type="number" step="1" min="1" max="7"></div>
-          <div class="field"><label for="rateNew">新車貸款年利率 %<small>原廠零利率填 0</small></label><input id="rateNew" type="number" step="0.1" min="0"></div>
           <div class="field"><label for="rateUsed">中古車貸款年利率 %</label><input id="rateUsed" type="number" step="0.1" min="0"></div>
           <div class="field"><label for="feeNew">新車領牌規費</label><input id="feeNew" type="number" step="1000" min="0"></div>
           <div class="field"><label for="feeUsed">中古車過戶代辦費</label><input id="feeUsed" type="number" step="1000" min="0"></div>
@@ -202,7 +201,8 @@ td.best{color:var(--ok)}
       <section class="box notes">
         <h2>資料來源與假設</h2>
         <ul>
-          <li>新車價：Toyota 台灣官網、8891 汽車（2026 年資料）。中古車價：MaxCar 2026 二手車行情區間的中間值。Tesla Model 3 新車價和各車款訂閱月費是估計值，請向業者確認。</li>
+          <li>新車價：Toyota 台灣官網、8891 汽車（2026 年資料）。Tesla Model 3 新車價 1,860,900 元和利率 3.25% 取自 Tesla 台灣官網的一組配置報價（2026 年 10 月），不同版本價格不同。中古車價：MaxCar 2026 二手車行情區間的中間值。各車款訂閱月費是估計值，請向業者確認。</li>
+          <li>車貸用一般本息平均攤還計算。以 Tesla 官網條件驗算（頭期款 372,180 元、60 期、3.25%），月付 26,916 元，和官網相同。</li>
           <li>牌照稅＋燃料費：1,201～1,800cc 汽油車一年 11,920 元，1,801～2,400cc 一年 17,440 元。電動車牌照稅是否開徵，請以稅捐處公告為準。</li>
           <li>Uber 費率：雙北菁英基本費 48 元、每公里 25 元、尖峰每分鐘 3.7 元；樂聚 62 元、32.5 元、4.8 元；尊榮 72 元、37.5 元、5.6 元。實際車資會隨時段浮動。</li>
           <li>車子殘值：新車第一年折舊 15%，之後每年 10%；中古車每年 9%；純電車折舊較快。</li>
@@ -215,14 +215,14 @@ td.best{color:var(--ok)}
 
 <script>
 const CARS = [
-  {id:"yaris",  name:"Toyota Yaris Cross",        newPrice:745000,  usedPrice:550000,  power:"gas",    eff:17,   tax:11920, subFee:16000},
-  {id:"ccross", name:"Toyota Corolla Cross 汽油", newPrice:850000,  usedPrice:620000,  power:"gas",    eff:15,   tax:11920, subFee:18000},
-  {id:"ccrossh",name:"Toyota Corolla Cross 油電", newPrice:985000,  usedPrice:700000,  power:"hybrid", eff:21,   tax:11920, subFee:20000},
-  {id:"kicks",  name:"Nissan Kicks",              newPrice:830000,  usedPrice:450000,  power:"gas",    eff:16,   tax:11920, subFee:17000},
-  {id:"hrv",    name:"Honda HR-V",                newPrice:860000,  usedPrice:600000,  power:"gas",    eff:16,   tax:11920, subFee:18000},
-  {id:"cx30",   name:"Mazda CX-30",               newPrice:1000000, usedPrice:650000,  power:"gas",    eff:14,   tax:17440, subFee:20000},
-  {id:"rav4",   name:"Toyota RAV4 油電",           newPrice:1250000, usedPrice:880000,  power:"hybrid", eff:20,   tax:17440, subFee:26000},
-  {id:"model3", name:"Tesla Model 3",             newPrice:1500000, usedPrice:1000000, power:"ev",     eff:0.14, tax:0,     subFee:30000},
+  {id:"yaris",  name:"Toyota Yaris Cross",        newPrice:745000,  usedPrice:550000,  power:"gas",    eff:17,   tax:11920, subFee:16000, rate:3},
+  {id:"ccross", name:"Toyota Corolla Cross 汽油", newPrice:850000,  usedPrice:620000,  power:"gas",    eff:15,   tax:11920, subFee:18000, rate:3},
+  {id:"ccrossh",name:"Toyota Corolla Cross 油電", newPrice:985000,  usedPrice:700000,  power:"hybrid", eff:21,   tax:11920, subFee:20000, rate:3},
+  {id:"kicks",  name:"Nissan Kicks",              newPrice:830000,  usedPrice:450000,  power:"gas",    eff:16,   tax:11920, subFee:17000, rate:3},
+  {id:"hrv",    name:"Honda HR-V",                newPrice:860000,  usedPrice:600000,  power:"gas",    eff:16,   tax:11920, subFee:18000, rate:3},
+  {id:"cx30",   name:"Mazda CX-30",               newPrice:1000000, usedPrice:650000,  power:"gas",    eff:14,   tax:17440, subFee:20000, rate:3},
+  {id:"rav4",   name:"Toyota RAV4 油電",           newPrice:1250000, usedPrice:880000,  power:"hybrid", eff:20,   tax:17440, subFee:26000, rate:3},
+  {id:"model3", name:"Tesla Model 3",             newPrice:1860900, usedPrice:1000000, power:"ev",     eff:0.14, tax:0,     subFee:30000, rate:3.25},
 ];
 const UBER = {
   std:{name:"菁英（Uber X）", base:48, km:25,   min:3.7},
@@ -237,7 +237,7 @@ const RENT = [
 const DEFAULTS = {
   budget:16000, down:0, years:5, parking:0,
   dayKm:15, days:22, trips:2, tripKm:80,
-  loanYears:5, rateNew:3, rateUsed:5.5, feeNew:10000, feeUsed:8000,
+  loanYears:5, rateUsed:5.5, feeNew:10000, feeUsed:8000,
   insBase:1500, insRate:2.5, maintNew:8000, maintUsed:15000,
   fuel:30, elec:3, subDeposit:30000,
   dayTrips:4, surge:10, speed:20,
@@ -294,7 +294,7 @@ function owned(mode){
   const price = isNew? c.newPrice : c.usedPrice;
   const down = Math.min(S.down, price);
   const fee = isNew? S.feeNew : S.feeUsed;
-  const r = (isNew? S.rateNew : S.rateUsed)/100/12;
+  const r = (isNew? (c.rate ?? 3) : S.rateUsed)/100/12;
   const n = Math.max(1, S.loanYears*12);
   const loan = price-down;
   const pmt = loan<=0 ? 0 : (r===0 ? loan/n : loan*r/(1-Math.pow(1+r,-n)));
@@ -326,7 +326,7 @@ function owned(mode){
     energy, energyLabel: ev?"電費":"油錢",
     startSum: down+fee+ins(0), monthlySum: pmt+energy+S.parking, annualSum: c.tax+maint+insAvg,
     endSum: -residual+remain,
-    note: "車價 "+wan(price)+"，貸款 "+wan(loan)
+    note: "車價 "+wan(price)+"，貸款 "+wan(loan)+"，年利率 "+((isNew?(c.rate ?? 3):S.rateUsed))+"%"
   };
 }
 function sub(){
@@ -392,6 +392,7 @@ function cfgHTML(o){
     return `<select data-m="${o.id}" data-k="pick" aria-label="${o.name}的車款">
         ${CARS.map(c=>`<option value="${c.id}">${c.name}</option>`).join("")}<option value="custom">自訂車款</option></select>
       <label class="mini">${pl}<input type="number" step="${pk==="subFee"?500:10000}" min="0" data-m="${o.id}" data-k="${pk}"></label>
+      ${o.id==="new"?`<label class="mini">貸款年利率 %（原廠零利率填 0）<input type="number" step="0.05" min="0" data-m="new" data-k="rate"></label>`:""}
       <details><summary>動力與油耗</summary>
         <label class="mini">動力<select data-m="${o.id}" data-k="power"><option value="gas">汽油</option><option value="hybrid">油電</option><option value="ev">純電</option></select></label>
         <label class="mini"><span data-efflabel="${o.id}">油耗（公里／公升）</span><input type="number" step="0.01" min="0" data-m="${o.id}" data-k="eff"></label>
@@ -455,7 +456,7 @@ function fillCfg(){
 }
 
 /* ---------- 共用條件 ---------- */
-const FIELDS = ["budget","down","years","parking","dayKm","days","trips","tripKm","loanYears","rateNew","rateUsed","feeNew","feeUsed","insBase","insRate","maintNew","maintUsed","fuel","elec","subDeposit","dayTrips","surge","speed"];
+const FIELDS = ["budget","down","years","parking","dayKm","days","trips","tripKm","loanYears","rateUsed","feeNew","feeUsed","insBase","insRate","maintNew","maintUsed","fuel","elec","subDeposit","dayTrips","surge","speed"];
 function fillInputs(){ FIELDS.forEach(k=>{ $(k).value = S[k]; }); fillCfg(); }
 function bind(){
   FIELDS.forEach(k=>{
