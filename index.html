@@ -1,0 +1,523 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>擁車還是叫車</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Noto+Sans+TC:wght@400;500;700&display=swap">
+<style>
+/* Layout: 左側是條件面板（桌機時固定），右側是結果：五張方案卡 → 累積支出圖 → 對照表。台灣國道指示牌的綠色做唯一的強調。 */
+:root{
+  --bg:#F2F4F3; --panel:#FFFFFF; --ink:#18211E; --muted:#5B6863; --line:#D9DFDC; --soft:#E8EDEA;
+  --sign:#0B6B4F; --sign-ink:#FFFFFF;
+  --ok:#1D7A4A; --ok-bg:#E1F2E8; --warn:#A4501A; --warn-bg:#FBEADF;
+  --c1:#0B6B4F; --c2:#2E5DAA; --c3:#B7791F; --c4:#B33F5A; --c5:#6A4FB0;
+  --f-ui:"IBM Plex Sans","Noto Sans TC",system-ui,sans-serif;
+  --f-head:"Noto Sans TC","IBM Plex Sans",system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#111816; --panel:#18211E; --ink:#E6ECE9; --muted:#9AA8A2; --line:#2C3833; --soft:#1F2925;
+  --sign:#0F7A5A; --sign-ink:#FFFFFF;
+  --ok:#6FD39C; --ok-bg:#16322A; --warn:#F0A774; --warn-bg:#3A2418;
+  --c1:#3FC497; --c2:#79A4F0; --c3:#E5B357; --c4:#EF7D96; --c5:#A992F0; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#111816; --panel:#18211E; --ink:#E6ECE9; --muted:#9AA8A2; --line:#2C3833; --soft:#1F2925;
+  --sign:#0F7A5A; --sign-ink:#FFFFFF;
+  --ok:#6FD39C; --ok-bg:#16322A; --warn:#F0A774; --warn-bg:#3A2418;
+  --c1:#3FC497; --c2:#79A4F0; --c3:#E5B357; --c4:#EF7D96; --c5:#A992F0; color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-ui);font-size:15px;line-height:1.6}
+.wrap{max-width:1240px;margin:0 auto;padding-inline:16px;padding-block:20px 48px}
+.num{font-variant-numeric:tabular-nums}
+
+/* 標題：國道指示牌 */
+.sign{background:var(--sign);color:var(--sign-ink);border-radius:8px;padding:6px}
+.sign-in{border:2px solid rgba(255,255,255,.85);border-radius:5px;padding:14px 18px;display:flex;flex-wrap:wrap;gap:6px 20px;align-items:baseline;justify-content:space-between}
+.sign h1{font-family:var(--f-head);font-size:clamp(22px,4vw,30px);margin:0;letter-spacing:.04em;text-wrap:balance}
+.sign p{margin:0;font-size:14px;opacity:.92}
+
+.grid{display:grid;grid-template-columns:340px minmax(0,1fr);gap:20px;margin-top:20px;align-items:start}
+@media (max-width:900px){.grid{grid-template-columns:minmax(0,1fr)}}
+
+/* 條件面板 */
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:14px}
+@media (min-width:901px){.panel{position:sticky;top:calc(env(safe-area-inset-top,0px) + 12px);max-height:calc(100vh - 24px);overflow:auto}}
+.group{display:flex;flex-direction:column;gap:10px}
+.group h2,.panel summary{font-family:var(--f-head);font-size:13px;font-weight:700;letter-spacing:.08em;color:var(--muted);margin:0}
+.panel details{border-top:1px solid var(--line);padding-top:12px}
+.panel summary{cursor:pointer;list-style:none;display:flex;justify-content:space-between}
+.panel summary::after{content:"＋";font-weight:400}
+.panel details[open] summary::after{content:"－"}
+.panel details[open] summary{margin-bottom:10px}
+.field{display:grid;grid-template-columns:minmax(0,1fr) 128px;gap:8px;align-items:center}
+.field label{font-size:14px}
+.field small{display:block;color:var(--muted);font-size:12px;line-height:1.4}
+.field input,.field select,.carsel{width:100%;font:inherit;font-variant-numeric:tabular-nums;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:6px 8px;text-align:right}
+.field select{text-align:left}
+.carsel{text-align:left;font-weight:600}
+input:focus-visible,select:focus-visible,button:focus-visible,summary:focus-visible{outline:2px solid var(--sign);outline-offset:2px}
+.hint{font-size:12px;color:var(--muted);margin:0;line-height:1.5}
+.warn-text{color:var(--warn);background:var(--warn-bg);border-radius:6px;padding:6px 8px}
+.btn{font:inherit;font-size:13px;background:none;border:1px solid var(--line);color:var(--muted);border-radius:6px;padding:6px 10px;cursor:pointer}
+.btn:hover{color:var(--ink);border-color:var(--muted)}
+
+/* 結果 */
+.results{display:flex;flex-direction:column;gap:20px;min-width:0}
+.verdict{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.verdict p{margin:0}
+.verdict strong{font-family:var(--f-head)}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:8px;min-width:0;border-top:4px solid var(--c)}
+.card.off{opacity:.45}
+.card-h{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.card-h h3{font-family:var(--f-head);font-size:17px;margin:0}
+.toggle{font:inherit;font-size:12px;background:none;border:1px solid var(--line);border-radius:999px;padding:2px 10px;color:var(--muted);cursor:pointer}
+.big{font-size:28px;font-weight:600;line-height:1.1}
+.big span{font-size:13px;font-weight:400;color:var(--muted);margin-left:4px}
+.pill{align-self:flex-start;font-size:12px;font-weight:500;border-radius:999px;padding:2px 10px}
+.pill.ok{background:var(--ok-bg);color:var(--ok)}
+.pill.over{background:var(--warn-bg);color:var(--warn)}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;font-size:13px}
+.kv dt{color:var(--muted)}
+.kv dd{margin:0;text-align:right}
+.card details{font-size:13px;border-top:1px solid var(--line);padding-top:8px}
+.card summary{cursor:pointer;color:var(--muted)}
+.items{margin:8px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:2px}
+.items li{display:flex;justify-content:space-between;gap:8px}
+.items li.sec{color:var(--muted);font-size:12px;margin-top:6px;letter-spacing:.06em}
+.items li .v{white-space:nowrap}
+
+.box{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px}
+.box h2{font-family:var(--f-head);font-size:17px;margin:0 0 4px}
+.box .sub{color:var(--muted);font-size:13px;margin:0 0 12px}
+.chartwrap{overflow-x:auto}
+svg text{font-family:var(--f-ui);font-variant-numeric:tabular-nums}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:13px;margin-top:8px}
+.legend span::before{content:"";display:inline-block;width:14px;height:3px;border-radius:2px;background:var(--c);vertical-align:middle;margin-right:6px}
+
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:620px;font-size:14px}
+th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th:first-child,td:first-child{text-align:left;color:var(--muted);font-weight:400}
+thead th{font-family:var(--f-head);font-size:14px;border-bottom:2px solid var(--line)}
+thead th i{display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--c);margin-right:6px;font-style:normal}
+tr.key td{font-weight:600}
+tr.key td:first-child{color:var(--ink)}
+td.best{color:var(--ok)}
+
+.notes{font-size:13px;color:var(--muted)}
+.notes h2{color:var(--ink)}
+.notes ul{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px}
+@media (prefers-reduced-motion:no-preference){.card,.pill{transition:opacity .2s}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="sign">
+    <div class="sign-in">
+      <h1>擁車還是叫車</h1>
+      <p>新車・中古車・訂閱車・Uber・叫車加租車，五種方式一起比</p>
+    </div>
+  </header>
+
+  <div class="grid">
+    <aside class="panel" aria-label="試算條件">
+      <section class="group">
+        <h2>你的條件</h2>
+        <div class="field"><label for="budget">每月預算<small>含所有用車費用</small></label><input id="budget" type="number" step="500" min="0"></div>
+        <div class="field"><label for="down">頭期款<small>手上可先拿出的錢</small></label><input id="down" type="number" step="10000" min="0"></div>
+        <div class="field"><label for="years">使用年數</label><input id="years" type="number" step="1" min="1" max="10"></div>
+        <div class="field"><label for="parking">停車費／月<small>有自己的車位填 0</small></label><input id="parking" type="number" step="500" min="0"></div>
+      </section>
+
+      <section class="group">
+        <h2>用車習慣</h2>
+        <div class="field"><label for="dayKm">平日每天里程（公里）</label><input id="dayKm" type="number" step="1" min="0"></div>
+        <div class="field"><label for="days">每月平日天數</label><input id="days" type="number" step="1" min="0" max="31"></div>
+        <div class="field"><label for="trips">假日出遊次數／月</label><input id="trips" type="number" step="1" min="0"></div>
+        <div class="field"><label for="tripKm">每次出遊來回里程</label><input id="tripKm" type="number" step="10" min="0"></div>
+      </section>
+
+      <section class="group">
+        <h2>車款</h2>
+        <select id="carPick" class="carsel" aria-label="選擇車款"></select>
+        <div class="field"><label for="newPrice">新車價</label><input id="newPrice" type="number" step="10000" min="0"></div>
+        <div class="field"><label for="usedPrice">中古車價</label><input id="usedPrice" type="number" step="10000" min="0"></div>
+        <div class="field"><label for="power">動力</label><select id="power"><option value="gas">汽油</option><option value="hybrid">油電</option><option value="ev">純電</option></select></div>
+        <div class="field"><label for="eff" id="effLabel">油耗（公里／公升）</label><input id="eff" type="number" step="0.01" min="0"></div>
+        <p class="hint warn-text" id="effWarn" hidden></p>
+        <div class="field"><label for="tax">牌照稅＋燃料費／年</label><input id="tax" type="number" step="100" min="0"></div>
+        <div class="field"><label for="subFee">訂閱月費</label><input id="subFee" type="number" step="500" min="0"></div>
+        <p class="hint">車價是 2026 年 10 月的參考值。看到實際報價後，直接改上面的數字。</p>
+      </section>
+
+      <details>
+        <summary>貸款與養車費用</summary>
+        <div class="group">
+          <div class="field"><label for="loanYears">貸款年數</label><input id="loanYears" type="number" step="1" min="1" max="7"></div>
+          <div class="field"><label for="rateNew">新車貸款年利率 %<small>原廠零利率填 0</small></label><input id="rateNew" type="number" step="0.1" min="0"></div>
+          <div class="field"><label for="rateUsed">中古車貸款年利率 %</label><input id="rateUsed" type="number" step="0.1" min="0"></div>
+          <div class="field"><label for="feeNew">新車領牌規費</label><input id="feeNew" type="number" step="1000" min="0"></div>
+          <div class="field"><label for="feeUsed">中古車過戶代辦費</label><input id="feeUsed" type="number" step="1000" min="0"></div>
+          <div class="field"><label for="insBase">強制險等固定保費／年</label><input id="insBase" type="number" step="100" min="0"></div>
+          <div class="field"><label for="insRate">車體險費率 %<small>車子現值的百分比</small></label><input id="insRate" type="number" step="0.1" min="0"></div>
+          <div class="field"><label for="maintNew">新車保養／年</label><input id="maintNew" type="number" step="1000" min="0"></div>
+          <div class="field"><label for="maintUsed">中古車保養維修／年</label><input id="maintUsed" type="number" step="1000" min="0"></div>
+          <div class="field"><label for="fuel">油價（元／公升）</label><input id="fuel" type="number" step="0.1" min="0"></div>
+          <div class="field"><label for="elec">家用電價（元／度）</label><input id="elec" type="number" step="0.1" min="0"></div>
+          <div class="field"><label for="subDeposit">訂閱保證金<small>期滿退還</small></label><input id="subDeposit" type="number" step="5000" min="0"></div>
+        </div>
+      </details>
+
+      <details>
+        <summary>叫車與租車</summary>
+        <div class="group">
+          <div class="field"><label for="uberTier">Uber 車型</label><select id="uberTier"><option value="std">菁英（5 人座）</option><option value="xl">樂聚（7 人座）</option></select></div>
+          <div class="field"><label for="dayTrips">平日每天趟數<small>接送來回通常是 4 趟</small></label><input id="dayTrips" type="number" step="1" min="1"></div>
+          <div class="field"><label for="surge">尖峰加價 %</label><input id="surge" type="number" step="5" min="0"></div>
+          <div class="field"><label for="speed">市區平均車速（公里／時）</label><input id="speed" type="number" step="1" min="5"></div>
+          <div class="field"><label for="rent">租車日租金<small>含基本保險</small></label><input id="rent" type="number" step="100" min="0"></div>
+        </div>
+      </details>
+
+      <button class="btn" id="reset" type="button">回到預設值</button>
+    </aside>
+
+    <main class="results">
+      <div class="verdict" id="verdict"></div>
+      <div class="cards" id="cards"></div>
+
+      <section class="box">
+        <h2>累積支出</h2>
+        <p class="sub" id="chartSub"></p>
+        <div class="chartwrap"><svg id="chart" viewBox="0 0 720 320" role="img" aria-label="各方案累積支出折線圖" style="width:100%;min-width:520px;height:auto"></svg></div>
+        <div class="legend" id="legend"></div>
+      </section>
+
+      <section class="box">
+        <h2>費用對照</h2>
+        <p class="sub">綠色數字是該列最省的方案。</p>
+        <div class="tablewrap"><table id="table"></table></div>
+      </section>
+
+      <section class="box notes">
+        <h2>資料來源與假設</h2>
+        <ul>
+          <li>新車價：Toyota 台灣官網、8891 汽車（2026 年資料）。中古車價：MaxCar 2026 二手車行情區間的中間值。Tesla Model 3 新車價和各車款訂閱月費是估計值，請向業者確認。</li>
+          <li>牌照稅＋燃料費：1,201～1,800cc 汽油車一年 11,920 元，1,801～2,400cc 一年 17,440 元。電動車牌照稅是否開徵，請以稅捐處公告為準。</li>
+          <li>Uber 費率：雙北菁英基本費 48 元、每公里 25 元、尖峰每分鐘 3.7 元；樂聚 62 元、32.5 元、4.8 元。實際車資會隨時段浮動。</li>
+          <li>車子殘值：新車第一年折舊 15%，之後每年 10%；中古車每年 9%；純電車折舊較快。</li>
+          <li>沒有算進去的費用：過路費、罰單、洗車、事故自負額，以及 Uber 兒童安全座椅的加價。</li>
+        </ul>
+      </section>
+    </main>
+  </div>
+</div>
+
+<script>
+const CARS = [
+  {id:"yaris",  name:"Toyota Yaris Cross",        newPrice:745000,  usedPrice:550000,  power:"gas",    eff:17,   tax:11920, subFee:16000},
+  {id:"ccross", name:"Toyota Corolla Cross 汽油", newPrice:850000,  usedPrice:620000,  power:"gas",    eff:15,   tax:11920, subFee:18000},
+  {id:"ccrossh",name:"Toyota Corolla Cross 油電", newPrice:985000,  usedPrice:700000,  power:"hybrid", eff:21,   tax:11920, subFee:20000},
+  {id:"kicks",  name:"Nissan Kicks",              newPrice:830000,  usedPrice:450000,  power:"gas",    eff:16,   tax:11920, subFee:17000},
+  {id:"hrv",    name:"Honda HR-V",                newPrice:860000,  usedPrice:600000,  power:"gas",    eff:16,   tax:11920, subFee:18000},
+  {id:"cx30",   name:"Mazda CX-30",               newPrice:1000000, usedPrice:650000,  power:"gas",    eff:14,   tax:17440, subFee:20000},
+  {id:"rav4",   name:"Toyota RAV4 油電",           newPrice:1250000, usedPrice:880000,  power:"hybrid", eff:20,   tax:17440, subFee:26000},
+  {id:"model3", name:"Tesla Model 3",             newPrice:1500000, usedPrice:1000000, power:"ev",     eff:0.14, tax:0,     subFee:30000},
+];
+const DEFAULTS = {
+  budget:16000, down:0, years:5, parking:0,
+  dayKm:15, days:22, trips:2, tripKm:80,
+  carPick:"yaris",
+  loanYears:5, rateNew:3, rateUsed:5.5, feeNew:10000, feeUsed:8000,
+  insBase:1500, insRate:2.5, maintNew:8000, maintUsed:15000,
+  fuel:30, elec:3, subDeposit:30000,
+  uberTier:"std", dayTrips:4, surge:10, speed:20, rent:2200,
+  hidden:[]
+};
+const UBER = {std:{base:48,km:25,min:3.7}, xl:{base:62,km:32.5,min:4.8}};
+const OPTS = [
+  {id:"new",  name:"新車",       c:"--c1"},
+  {id:"used", name:"中古車",     c:"--c2"},
+  {id:"sub",  name:"訂閱車",     c:"--c3"},
+  {id:"uber", name:"Uber 叫車",  c:"--c4"},
+  {id:"mix",  name:"叫車＋租車", c:"--c5"},
+];
+const KEY = "car-cost-v1";
+let S;
+function load(){
+  let saved=null;
+  try{ saved=JSON.parse(localStorage.getItem(KEY)); }catch(e){}
+  S = Object.assign({}, DEFAULTS, saved||{});
+  if(!S.car) S.car = Object.assign({}, CARS.find(c=>c.id===S.carPick)||CARS[0]);
+}
+function save(){ try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} }
+
+const $ = id => document.getElementById(id);
+const nt = n => "NT$ " + Math.round(n).toLocaleString("zh-TW");
+const wan = n => { const v=n/10000; return (Math.abs(v)>=100? v.toFixed(0): v.toFixed(1)) + " 萬"; };
+
+/* ---------- 計算 ---------- */
+function monthlyKm(){ return S.dayKm*S.days + S.trips*S.tripKm; }
+function energyCost(km, car){
+  if(car.power==="ev") return km*car.eff*S.elec;
+  return car.eff>0 ? km/car.eff*S.fuel : 0;
+}
+function uberFare(km, speed){
+  const r=UBER[S.uberTier]; const min = km/speed*60;
+  return (r.base + r.km*km + r.min*min) * (1+S.surge/100);
+}
+function weekdayUber(){
+  const tripKm = S.dayTrips>0 ? S.dayKm/S.dayTrips : 0;
+  return S.days*S.dayTrips*uberFare(tripKm, S.speed);
+}
+
+function owned(mode){
+  const c=S.car, isNew = mode==="new", ev = c.power==="ev";
+  const price = isNew? c.newPrice : c.usedPrice;
+  const down = Math.min(S.down, price);
+  const fee = isNew? S.feeNew : S.feeUsed;
+  const r = (isNew? S.rateNew : S.rateUsed)/100/12;
+  const n = Math.max(1, S.loanYears*12);
+  const loan = price-down;
+  const pmt = loan<=0 ? 0 : (r===0 ? loan/n : loan*r/(1-Math.pow(1+r,-n)));
+  const H = S.years*12;
+  const d1 = isNew? (ev?.2:.15) : (ev?.12:.09), d = isNew? (ev?.12:.10) : (ev?.12:.09);
+  const value = y => isNew ? (y===0? price : price*(1-d1)*Math.pow(1-d,y-1)) : price*Math.pow(1-d,y);
+  const ins = y => S.insBase + value(y)*S.insRate/100;
+  const maint = (isNew? S.maintNew : S.maintUsed) * (ev? .5 : 1);
+  const energy = energyCost(monthlyKm(), c);
+  const bal = k => k>=n ? 0 : (r===0 ? loan - pmt*k : loan*Math.pow(1+r,k) - pmt*(Math.pow(1+r,k)-1)/r);
+  const remain = Math.max(0, bal(H));
+  const residual = value(S.years);
+
+  const series=[]; let cum = down + fee + ins(0); series.push(cum);
+  for(let m=1;m<=H;m++){
+    cum += (m<=n? pmt:0) + energy + S.parking;
+    if(m%12===0 && m<H) cum += ins(m/12);
+    if(m%12===6) cum += c.tax + maint;
+    series.push(cum);
+  }
+  let insAvg=0; for(let y=1;y<S.years;y++) insAvg+=ins(y); insAvg = S.years>1 ? insAvg/(S.years-1) : 0;
+  const annual = c.tax + maint + (S.years>1? insAvg : 0);
+  const burden = pmt + energy + S.parking + (c.tax + maint + ins(0))/12;
+  return {
+    start:[["頭期款",down],[isNew?"領牌規費":"過戶代辦費",fee],["第一年保險",ins(0)]],
+    monthly:[["車貸（"+S.loanYears+" 年）",pmt],[ev?"電費":"油錢",energy],["停車費",S.parking]],
+    annual:[["牌照稅＋燃料費",c.tax],[isNew?"保養":"保養維修",maint],["保險（第 2 年起平均）",S.years>1?insAvg:0]],
+    end:[["賣車回收",-residual],...(remain>0?[["還清剩下車貸",remain]]:[])],
+    series, out:series[H], net: series[H]-residual+remain, burden, energy,
+    startSum: down+fee+ins(0), monthlySum: pmt+energy+S.parking, annualSum: annual,
+    endSum: -residual+remain,
+    note: isNew? (price>0? "車價 "+wan(price)+"，貸款 "+wan(loan) : "") : "車價 "+wan(price)+"，貸款 "+wan(loan)
+  };
+}
+function sub(){
+  const c=S.car, H=S.years*12;
+  const energy = energyCost(monthlyKm(), c);
+  const m = c.subFee + energy + S.parking;
+  const series=[S.subDeposit]; for(let i=1;i<=H;i++) series.push(S.subDeposit + m*i);
+  return {
+    start:[["保證金（期滿退還）",S.subDeposit]],
+    monthly:[["訂閱月費（含保險、稅金、保養）",c.subFee],[c.power==="ev"?"電費":"油錢",energy],["停車費",S.parking]],
+    annual:[],
+    end:[["退還保證金",-S.subDeposit]],
+    series, out:series[H], net: series[H]-S.subDeposit, burden:m, energy,
+    startSum:S.subDeposit, monthlySum:m, annualSum:0, endSum:-S.subDeposit,
+    note:"合約常見 1～3 年，多數有里程上限"
+  };
+}
+function uber(){
+  const H=S.years*12;
+  const wk = weekdayUber();
+  const trip = S.trips*2*uberFare(S.tripKm/2, S.speed*1.6);
+  const m = wk+trip;
+  const series=[0]; for(let i=1;i<=H;i++) series.push(m*i);
+  return {
+    start:[], monthly:[["平日接送（"+S.days*S.dayTrips+" 趟）",wk],["假日出遊（"+S.trips*2+" 趟）",trip]],
+    annual:[], end:[],
+    series, out:series[H], net:series[H], burden:m,
+    startSum:0, monthlySum:m, annualSum:0, endSum:0,
+    note:"不用停車、不用保養，但尖峰時段價格會浮動"
+  };
+}
+function mix(){
+  const H=S.years*12;
+  const wk = weekdayUber();
+  const rent = S.trips*S.rent;
+  const gas = energyCost(S.trips*S.tripKm, {power:"gas", eff:15});
+  const m = wk+rent+gas;
+  const series=[0]; for(let i=1;i<=H;i++) series.push(m*i);
+  return {
+    start:[], monthly:[["平日接送 Uber",wk],["假日租車（"+S.trips+" 天）",rent],["租車油錢",gas]],
+    annual:[], end:[],
+    series, out:series[H], net:series[H], burden:m,
+    startSum:0, monthlySum:m, annualSum:0, endSum:0,
+    note:"租車押金通常用信用卡預授權"
+  };
+}
+function computeAll(){ return {new:owned("new"), used:owned("used"), sub:sub(), uber:uber(), mix:mix()}; }
+
+/* ---------- 畫面 ---------- */
+const FIELDS = ["budget","down","years","parking","dayKm","days","trips","tripKm","loanYears","rateNew","rateUsed","feeNew","feeUsed","insBase","insRate","maintNew","maintUsed","fuel","elec","subDeposit","uberTier","dayTrips","surge","speed","rent"];
+const CARF = ["newPrice","usedPrice","power","eff","tax","subFee"];
+
+function fillInputs(){
+  FIELDS.forEach(k=>{ $(k).value = S[k]; });
+  CARF.forEach(k=>{ $(k).value = S.car[k]; });
+  $("carPick").value = S.carPick;
+}
+function bind(){
+  const sel=$("carPick");
+  sel.innerHTML = CARS.map(c=>`<option value="${c.id}">${c.name}</option>`).join("") + `<option value="custom">自訂車款</option>`;
+  FIELDS.forEach(k=>{
+    $(k).addEventListener("input", e=>{
+      const el=e.target; S[k] = el.tagName==="SELECT" ? el.value : (parseFloat(el.value)||0);
+      if(k==="years") S.years = Math.min(10, Math.max(1, Math.round(S.years)));
+      render(); save();
+    });
+  });
+  CARF.forEach(k=>{
+    $(k).addEventListener("input", e=>{
+      const el=e.target;
+      if(k==="power"){
+        const wasEv = S.car.power==="ev", isEv = el.value==="ev";
+        S.car.power = el.value;
+        if(wasEv!==isEv){ S.car.eff = isEv? 0.14 : (el.value==="hybrid"? 21 : 15); $("eff").value = S.car.eff; }
+        if(isEv) { S.car.tax = 0; $("tax").value = 0; }
+      } else {
+        S.car[k] = parseFloat(el.value)||0;
+      }
+      if(S.carPick!=="custom"){ S.carPick="custom"; sel.value="custom"; }
+      render(); save();
+    });
+  });
+  sel.addEventListener("change", ()=>{
+    S.carPick = sel.value;
+    const p = CARS.find(c=>c.id===sel.value);
+    if(p) S.car = Object.assign({}, p);
+    fillInputs(); render(); save();
+  });
+  $("reset").addEventListener("click", ()=>{
+    S = Object.assign({}, DEFAULTS, {hidden:[]}); S.car = Object.assign({}, CARS[0]);
+    fillInputs(); render(); save();
+  });
+}
+
+function itemList(R){
+  const sec=(t,arr)=> arr.length? `<li class="sec">${t}</li>`+arr.map(([l,v])=>`<li><span>${l}</span><span class="v num">${v<0?"－":""}${nt(Math.abs(v))}</span></li>`).join("") : "";
+  return `<ul class="items">${sec("起始",R.start)}${sec("每月",R.monthly)}${sec("每年",R.annual)}${sec("期末",R.end)}</ul>`;
+}
+
+function effProblem(){
+  const c=S.car;
+  if(c.power==="ev") return (c.eff<0.08||c.eff>0.4) ? "電耗通常在每公里 0.12～0.20 度之間，請確認數字。" : "";
+  return (c.eff<5||c.eff>40) ? "汽油車油耗通常在每公升 10～25 公里之間。如果你要算電動車，請把「動力」改成純電。" : "";
+}
+function render(){
+  const R = computeAll(), H=S.years*12;
+  $("effLabel").innerHTML = S.car.power==="ev" ? "電耗（度／公里）<small>Model 3 約 0.14</small>" : "油耗（公里／公升）";
+  const prob = effProblem(); $("effWarn").hidden = !prob; $("effWarn").textContent = prob;
+  const vis = OPTS.filter(o=>!S.hidden.includes(o.id));
+
+  // 方案卡
+  $("cards").innerHTML = OPTS.map(o=>{
+    const r=R[o.id], ok = r.burden<=S.budget, cashOk = r.startSum<=S.down || r.startSum===0;
+    const off=S.hidden.includes(o.id);
+    return `<article class="card${off?" off":""}" style="--c:var(${o.c})">
+      <div class="card-h"><h3>${o.name}</h3><button class="toggle" type="button" data-t="${o.id}" aria-pressed="${!off}">${off?"顯示":"隱藏"}</button></div>
+      <div class="big num">${Math.round(r.burden).toLocaleString("zh-TW")}<span>元／月</span></div>
+      <span class="pill ${ok?"ok":"over"}">${ok?"在預算內，還剩 "+Math.round(S.budget-r.burden).toLocaleString("zh-TW"):"超出預算 "+Math.round(r.burden-S.budget).toLocaleString("zh-TW")}</span>
+      <dl class="kv num">
+        <dt>起始資金</dt><dd>${nt(r.startSum)}</dd>
+        ${r.energy!=null?`<dt>${S.car.power==="ev"?"電費":"油錢"}／月</dt><dd>${nt(r.energy)}</dd>`:""}
+        <dt>${S.years} 年淨成本</dt><dd>${wan(r.net)}</dd>
+      </dl>
+      <p class="hint">${r.note}${!cashOk?"。起始資金比你填的頭期款多 "+nt(r.startSum-S.down):""}</p>
+      <details><summary>看明細</summary>${itemList(r)}</details>
+    </article>`;
+  }).join("");
+  document.querySelectorAll("[data-t]").forEach(b=>b.addEventListener("click",()=>{
+    const id=b.dataset.t; S.hidden = S.hidden.includes(id)? S.hidden.filter(x=>x!==id) : [...S.hidden,id];
+    render(); save();
+  }));
+
+  // 結論
+  const fit = OPTS.filter(o=>R[o.id].burden<=S.budget);
+  const cheapest = OPTS.slice().sort((a,b)=>R[a.id].net-R[b.id].net)[0];
+  $("verdict").innerHTML = (prob?`<p class="hint warn-text" style="margin-bottom:8px">油耗數字看起來不對，下面的結果可能偏高很多。${prob}</p>`:"") + `<p>${S.car.name}・每月 ${monthlyKm().toLocaleString("zh-TW")} 公里・用 ${S.years} 年。
+    ${fit.length? `每月 ${S.budget.toLocaleString("zh-TW")} 元內做得到的是 <strong>${fit.map(o=>o.name).join("、")}</strong>。` : `每月 ${S.budget.toLocaleString("zh-TW")} 元內，五種方式都做不到。`}
+    ${S.years} 年下來最省的是 <strong>${cheapest.name}</strong>，淨成本約 ${wan(R[cheapest.id].net)}。</p>`;
+
+  drawChart(R, vis, H);
+  drawTable(R);
+}
+
+function drawChart(R, vis, H){
+  const W=720,Ht=320,L=56,Rt=96,T=16,B=36;
+  const css=getComputedStyle(document.documentElement);
+  const col = v=>css.getPropertyValue(v).trim();
+  let max=0; vis.forEach(o=>{ max=Math.max(max, ...R[o.id].series); });
+  const step = niceStep(max/5); const ymax = Math.max(step, Math.ceil(max/step)*step);
+  const x = m => L + (W-L-Rt)*m/H, y = v => T + (Ht-T-B)*(1-v/ymax);
+  let s="";
+  for(let v=0; v<=ymax+1; v+=step){
+    s+=`<line x1="${L}" x2="${W-Rt}" y1="${y(v)}" y2="${y(v)}" stroke="${col("--line")}" stroke-width="1"/>`;
+    s+=`<text x="${L-8}" y="${y(v)+4}" text-anchor="end" font-size="12" fill="${col("--muted")}">${v/10000} 萬</text>`;
+  }
+  for(let yr=0; yr<=S.years; yr++){
+    s+=`<text x="${x(yr*12)}" y="${Ht-12}" text-anchor="middle" font-size="12" fill="${col("--muted")}">${yr===0?"開始":"第 "+yr+" 年"}</text>`;
+  }
+  const ends=[];
+  vis.forEach(o=>{
+    const r=R[o.id], c=col(o.c);
+    const pts = r.series.map((v,m)=>`${x(m).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+    s+=`<polyline points="${pts}" fill="none" stroke="${c}" stroke-width="2.5" stroke-linejoin="round"/>`;
+    if(Math.abs(r.net - r.out)>1){
+      s+=`<line x1="${x(H)}" x2="${x(H)}" y1="${y(r.out)}" y2="${y(r.net)}" stroke="${c}" stroke-width="2" stroke-dasharray="3 3"/>`;
+    }
+    s+=`<circle cx="${x(H)}" cy="${y(r.net)}" r="4.5" fill="${c}"/>`;
+    ends.push({y:y(r.net), c, t:o.name+" "+wan(r.net)});
+  });
+  ends.sort((a,b)=>a.y-b.y);
+  for(let i=1;i<ends.length;i++) if(ends[i].y-ends[i-1].y<15) ends[i].y=ends[i-1].y+15;
+  ends.forEach(e=>{ s+=`<text x="${x(H)+8}" y="${e.y+4}" font-size="12" fill="${e.c}" font-weight="600">${e.t}</text>`; });
+  $("chart").innerHTML=s;
+  $("chartSub").textContent = "線是每個月累積付出的錢。最後的虛線是期末賣車或退保證金拿回的錢，圓點是淨成本。";
+  $("legend").innerHTML = vis.map(o=>`<span style="--c:var(${o.c})">${o.name}</span>`).join("");
+}
+function niceStep(raw){
+  if(raw<=0) return 10000;
+  const p=Math.pow(10,Math.floor(Math.log10(raw))); const f=raw/p;
+  return (f<=1?1:f<=2?2:f<=5?5:10)*p;
+}
+
+function drawTable(R){
+  const rows=[
+    ["起始資金", r=>r.startSum, nt, false],
+    ["每月固定支出", r=>r.monthlySum, nt, false],
+    ["每年另外支出", r=>r.annualSum, nt, false],
+    ["每月實際負擔（含年度費用）", r=>r.burden, nt, true],
+    [S.years+" 年總共付出", r=>r.out, wan, false],
+    ["期末拿回", r=>-r.endSum, wan, false],
+    [S.years+" 年淨成本", r=>r.net, wan, true],
+    ["平均每月淨成本", r=>r.net/(S.years*12), nt, true],
+  ];
+  let h=`<thead><tr><th>項目</th>${OPTS.map(o=>`<th style="--c:var(${o.c})"><i></i>${o.name}</th>`).join("")}</tr></thead><tbody>`;
+  rows.forEach(([label,fn,f,key],i)=>{
+    const vals=OPTS.map(o=>fn(R[o.id]));
+    const best = i===5 ? Math.max(...vals) : Math.min(...vals);
+    h+=`<tr class="${key?"key":""}"><td>${label}</td>${vals.map(v=>`<td class="num${Math.abs(v-best)<1 && !(i===5&&best===0)?" best":""}">${f(v)}</td>`).join("")}</tr>`;
+  });
+  $("table").innerHTML = h+"</tbody>";
+}
+
+load(); bind(); fillInputs(); render();
+if(window.matchMedia){ const mq=matchMedia("(prefers-color-scheme: dark)"); mq.addEventListener && mq.addEventListener("change", render); }
+new MutationObserver(render).observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});
+</script>
+</body>
+</html>
